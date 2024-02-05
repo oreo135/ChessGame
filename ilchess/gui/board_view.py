@@ -1,23 +1,11 @@
+from functools import partial
 from io import BytesIO
-import tkinter as tk
 from PIL import Image, ImageTk
 from importlib_resources import files
 
 import ilchess.gui.figs
 from ilchess.gui.gui_settings import *
-
-# small letters for whites, large letters for blacks
-# 0 for empty squares
-_default_state_ = [
-    ['r', 'n', 'b', 'k', 'q', 'b', 'n', 'r'],
-    ['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'],
-    ['0', '0', '0', '0', '0', '0', '0', '0'],
-    ['0', '0', '0', '0', '0', '0', '0', '0'],
-    ['0', '0', '0', '0', '0', '0', '0', '0'],
-    ['0', '0', '0', '0', '0', '0', '0', '0'],
-    ['P', 'P', 'P', 'P', 'P', 'P', 'P', 'P'],
-    ['R', 'N', 'B', 'K', 'Q', 'B', 'N', 'R'],
-]
+from ilchess.state import default_state
 
 _figures_map_ = {
     'b': 'Bishop',
@@ -77,16 +65,20 @@ def _label_side():
 class BoardView(object):
     """
     GameView is only used to represent graphical user interface
-    of the game board.
+    of the controller board.
     It only has two functions:
         `__init__` (initializes board and draws all figures)
         `update_state` (updates board state on figure selection and move)
     """
-    def __init__(self, state):
+    def __init__(self, state, history=None):
+        if history is None:
+            history = []
+        self._history = history
         _label_top()
         _label_side()
         self._canvas = []
         self._images = []
+        self._state = state
         for row in range(8):
             self._images.append([])
             self._canvas.append([])
@@ -102,16 +94,24 @@ class BoardView(object):
                 canvas.grid(row=row+1, column=col+1)
                 self._images[-1].append(None)
                 self._canvas[-1].append(canvas)
-        self.update_state(state)
+                self._add_canvas_click_handler(row, col)
+        self.update_state(state, history)
 
-    def update_state(self, state):
+    def update_state(self, state, history):
+        self._state = state
+        self._history = history
         for row in range(8):
             for col in range(8):
                 fig_image = self._images[row][col]
                 if fig_image is not None:
                     self._canvas[row][col].delete(fig_image)
+
                 self._images[row][col] = _draw_figure(self._canvas[row][col], state[row][col])
 
+    def _on_square_click(self, row, col, entry):
+        print(str(self._state))
 
-def default_board_view():
-    return BoardView(_default_state_)
+
+    def _add_canvas_click_handler(self, row, col):
+        self._canvas[row][col].bind('<Button-1>', partial(self._on_square_click, row, col))
+
