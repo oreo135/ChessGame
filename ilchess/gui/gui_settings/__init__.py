@@ -13,3 +13,5 @@ figure_width = 111
 figure_height = 120
 white_bg = "white"
 black_bg = "grey"
+white_bg_hl = "cyan"
+black_bg_hl = "red"

@@ -52,6 +52,7 @@ def _move_is_possible(move, game_state):
     pass
 
 def _only_possible_moves(moves, game_state):
+    print("only possible moves " + str(moves))
     return [move for move in moves] # TODO if _move_is_possible(move, game_state)]
 
 def _get_pawn_moves(pos, game_state, move_history):
@@ -60,41 +61,43 @@ def _get_pawn_moves(pos, game_state, move_history):
     moves = []
     if my_color == 'b':
         # E7E6
-        if game_state[row - 1][col] == '0':
+        if game_state[row - 1][col] == '0' and (row - 1) >= 0:
             moves.append((row - 1, col))
         # E7E5
-        if col == 6 and game_state[row - 2][col] == '0' and game_state[row - 1][col] == '0':
+        if row == 6 and game_state[row - 2][col] == '0' and game_state[row - 1][col] == '0' and (row - 2) >= 0:
             moves.append((row - 2, col))
         # E4D3 if white last was pawn D2D4
-        if row == 3 and game_state[row][col - 1] == 'p' and move_history[-1][0] == (row - 2, col - 1)\
-                and move_history[-1][1] == (row, col - 1):
-            moves.append((row - 1, col - 1))
-        # E4F3 if white last was pawn F2F4
-        if row == 3 and game_state[row][col + 1] == 'p' and move_history[-1][0] == (row - 2, col + 1)\
-                and move_history[-1][1] == (row, col + 1):
-            moves.append((row - 1, col + 1))
-        if _is_opposing(my_color, game_state[row - 1][col - 1]):
-            moves.append((row - 1, col - 1))
-        if _is_opposing(my_color, game_state[row - 1][col + 1]):
+        if len(move_history):
+            if row == 3 and game_state[row][col - 1] == 'p' and move_history[-1][0] == (row - 2, col - 1)\
+                    and move_history[-1][1] == (row, col - 1):
+                moves.append((row - 1, col - 1))
+            # E4F3 if white last was pawn F2F4
+            if row == 3 and game_state[row][col + 1] == 'p' and move_history[-1][0] == (row - 2, col + 1)\
+                    and move_history[-1][1] == (row, col + 1):
+                moves.append((row - 1, col + 1))
+            if _is_opposing(my_color, game_state[row - 1][col - 1]):
+                moves.append((row - 1, col - 1))
+        if col < 7 and _is_opposing(my_color, game_state[row - 1][col + 1]):
             moves.append((row - 1, col + 1))
     else:
         # E3E4
-        if game_state[row + 1][col] == '0':
+        if game_state[row + 1][col] == '0' and row + 1 <= 7:
             moves.append((row + 1, col))
         # E2E4
-        if col == 1 and game_state[row + 2][col] == '0' and game_state[row + 1][col] == '0':
+        if row == 1 and game_state[row + 2][col] == '0' and game_state[row + 1][col] == '0' and row + 2 <= 7:
             moves.append((row + 2, col))
         # E4D5
-        if col == 4 and game_state[row][col - 1] == 'p' and move_history[-1][0] == (row + 2, col - 1) \
-                and move_history[-1][1] == (row, col - 1):
-            moves.append((row + 1, col - 1))
-        # E4F5
-        if col == 4 and game_state[row][col + 1] == 'p' and move_history[-1][0] == (row + 2, col + 1) \
-                and move_history[-1][1] == (row, col + 1):
-            moves.append((row + 1, col + 1))
+        if len(move_history):
+            if row == 4 and game_state[row][col - 1] == 'p' and move_history[-1][0] == (row + 2, col - 1) \
+                    and move_history[-1][1] == (row, col - 1):
+                moves.append((row + 1, col - 1))
+            # E4F5
+            if row == 4 and game_state[row][col + 1] == 'p' and move_history[-1][0] == (row + 2, col + 1) \
+                    and move_history[-1][1] == (row, col + 1):
+                moves.append((row + 1, col + 1))
         if _is_opposing(my_color, game_state[row + 1][col - 1]):
             moves.append((row + 1, col - 1))
-        if _is_opposing(my_color, game_state[row + 1][col + 1]):
+        if col < 7 and _is_opposing(my_color, game_state[row + 1][col + 1]):
             moves.append((row + 1, col + 1))
         pass
     return moves
@@ -103,10 +106,19 @@ def _get_pawn_moves(pos, game_state, move_history):
 def _get_king_moves(pos, game_state, move_history):
     my_color = 'b' if len(move_history) % 2 else 'w'
     row, col = pos
-    moves = []
-    all_moves_king = [(r, c) for (r, c) in []]
-    # TODO
-    return []
+    possible_moves = [
+            (row + 1, col - 1),
+            (row + 1, col),
+            (row + 1, col + 1),
+            (row, col + 1),
+            (row - 1, col + 1),
+            (row - 1, col),
+            (row - 1, col - 1)
+    ]
+    return [
+        (r, c) for (r, c) in possible_moves if 0 <= r < 8 and 0 <= c < 8 and not _is_mine(my_color, game_state[r][c])
+    ]
+
 
 
 def _get_bishop_moves(pos, game_state, move_history):
@@ -115,7 +127,7 @@ def _get_bishop_moves(pos, game_state, move_history):
     moves = []
     # Upper right diagonal
     for i_row, j_col in zip(range(1, 8), range(1, 8)):
-        if (i_row + row) > 7 and (j_col + col) > 7 or _is_mine(my_color, game_state[i_row + row][j_col + col]):
+        if (i_row + row) > 7 or (j_col + col) > 7 or _is_mine(my_color, game_state[i_row + row][j_col + col]):
             break
         elif game_state[i_row + row][j_col + col] == '0':
             moves.append((i_row + row, j_col + col))
@@ -125,7 +137,7 @@ def _get_bishop_moves(pos, game_state, move_history):
 
     # Lower right diagonal
     for i_row, j_col in zip(range(-1, -8, -1), range(1, 8)):
-        if (i_row + row) < 0 and (j_col + col) > 7 or _is_mine(my_color, game_state[i_row + row][j_col + col]):
+        if (i_row + row) < 0 or (j_col + col) > 7 or _is_mine(my_color, game_state[i_row + row][j_col + col]):
             break
         elif game_state[i_row + row][j_col + col] == '0':
             moves.append((i_row + row, j_col + col))
@@ -135,7 +147,7 @@ def _get_bishop_moves(pos, game_state, move_history):
 
     # Upper left diagonal
     for i_row, j_col in zip(range(1, 8), range(-1, -8, -1)):
-        if (i_row + row) > 7 and (j_col + col) < 0 or _is_mine(my_color, game_state[i_row + row][j_col + col]):
+        if (i_row + row) > 7 or (j_col + col) < 0 or _is_mine(my_color, game_state[i_row + row][j_col + col]):
             break
         elif game_state[i_row + row][j_col + col] == '0':
             moves.append((i_row + row,j_col + col))
@@ -144,7 +156,7 @@ def _get_bishop_moves(pos, game_state, move_history):
 
     # Lower left diagonal
     for i_row, j_col in zip(range(-1, -8, -1), range(-1, -8, -1)):
-        if (i_row + row) < 0 and (j_col + col) < 0 or _is_mine(my_color, game_state[i_row + row][j_col + col]):
+        if (i_row + row) < 0 or (j_col + col) < 0 or _is_mine(my_color, game_state[i_row + row][j_col + col]):
             break
         elif game_state[i_row + row][j_col + col] == '0':
             moves.append((i_row + row,j_col + col))
@@ -211,7 +223,7 @@ def _get_knight_moves(pos, game_state, move_history):
         (row - 1, col + 2),
         (row - 1, col - 2)
     ] if 0 <= r < 8 and 0 <= c < 8
-      and (game_state[r][c] == '0' or _is_opposing(my_color, game_state[r][c]))
+      and not _is_mine(my_color, game_state[r][c])
     ]
 
 
@@ -239,22 +251,20 @@ def _evaluate_available_moves(fig_pos, game_state, moves_history):
 
 def _get_available_moves(player_positions, opponent_positions, game_state, moves_history):
     available_moves = []
-    print(str(player_positions))
     for fig, positions in player_positions.items():
-        print('fig ' + str(fig) + ' ' + str(positions))
         for pos in positions:
-            available_moves += (pos, _evaluate_available_moves(
+            available_moves.append((pos, _evaluate_available_moves(
                 (fig.lower(), pos),
                 # player_positions,
                 # opponent_positions,
                 game_state,
                 moves_history
-            ))
+            )))
+    return available_moves
 
 
 def _get_available_moves_for_state(game_state, moves_history):
     w_pos, b_pos = _get_figures_positions(game_state)
-    print(str(w_pos))
     player_positions, opponent_positions = (b_pos, w_pos) if len(moves_history) % 2 else (w_pos, b_pos)
     return _get_available_moves(player_positions, opponent_positions, game_state, moves_history)
 
@@ -307,13 +317,18 @@ class BoardController(object):
         self._moves_history = moves_history
 
     def get_available_moves(self):
-        _get_available_moves_for_state(self._board_state, self._moves_history)
+        return dict(_get_available_moves_for_state(self._board_state, self._moves_history))
 
     def perform_move(self, start_pos, end_pos):
         # TODO actually perform move and update state
         print("you want to move from " + str(start_pos) + " to " + str(end_pos))
+        start_row, start_col = start_pos
+        end_row, end_col = end_pos
+        self._board_state[end_row][end_col] = self._board_state[start_row][start_col]
+        self._board_state[start_row][start_col] = '0'
+        self._moves_history.append((start_pos, end_pos))
         for handler in self._move_handlers:
-            handler(self._board_state, self._moves_history)
+            handler(self._board_state, self._moves_history, self.get_available_moves())
 
     def add_move_handler(self, move_handler):
         self._move_handlers.append(move_handler)

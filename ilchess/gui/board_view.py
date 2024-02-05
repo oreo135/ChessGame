@@ -33,6 +33,16 @@ def _load_fig_images():
 _all_figures_ = _load_fig_images()
 
 
+def _get_color(row, col, highlight=False):
+    if (row + col) % 2:
+        return black_bg_hl if highlight else black_bg
+    else:
+        return white_bg_hl if highlight else white_bg
+
+
+
+
+
 def _draw_figure(canvas, figure_key):
     if figure_key != '0':
         figure = _figures_map_[figure_key.lower()]
@@ -70,10 +80,13 @@ class BoardView(object):
         `__init__` (initializes board and draws all figures)
         `update_state` (updates board state on figure selection and move)
     """
-    def __init__(self, state, history=None):
+    def __init__(self, state, available_moves, history=None):
         if history is None:
             history = []
+        self._selected_square = None
+        self._available_moves = available_moves
         self._history = history
+        self._move_handlers = []
         _label_top()
         _label_side()
         self._canvas = []
@@ -95,11 +108,12 @@ class BoardView(object):
                 self._images[-1].append(None)
                 self._canvas[-1].append(canvas)
                 self._add_canvas_click_handler(row, col)
-        self.update_state(state, history)
+        self.update_state(state, history, available_moves)
 
-    def update_state(self, state, history):
+    def update_state(self, state, history, available_moves):
         self._state = state
         self._history = history
+        self._available_moves = available_moves
         for row in range(8):
             for col in range(8):
                 fig_image = self._images[row][col]
@@ -108,10 +122,32 @@ class BoardView(object):
 
                 self._images[row][col] = _draw_figure(self._canvas[row][col], state[row][col])
 
-    def _on_square_click(self, row, col, entry):
-        print(str(self._state))
+    def _handle_move(self, pos_from, pos_to):
+        for handler in self._move_handlers:
+            handler(pos_from, pos_to)
 
+    def _on_square_click(self, row, col, _):
+        if self._selected_square is not None:
+            print("SELECTED SQUARE" + str(self._selected_square))
+            square_moves = self._available_moves.get(self._selected_square)
+            if square_moves is not None and (row, col) in square_moves:
+                self._handle_move(pos_from=self._selected_square, pos_to=(row, col))
+                self._selected_square = None
+            for r, c in square_moves:
+                self._canvas[r][c].configure(bg=_get_color(r, c, highlight=False))
+            self._selected_square = None
+        else:
+            avail_moves = self._available_moves.get((row, col))
+            # TODO: elaborated logic here, on square select, on square deselect, premove, etc
+            # For now only highlight available squares
+
+            if avail_moves is not None:
+                for (r, c) in avail_moves:
+                    self._canvas[r][c].configure(bg=_get_color(r, c, highlight=True))
+                self._selected_square = (row, col)
 
     def _add_canvas_click_handler(self, row, col):
         self._canvas[row][col].bind('<Button-1>', partial(self._on_square_click, row, col))
 
+    def add_move_handler(self, move_handler):
+        self._move_handlers.append(move_handler)
