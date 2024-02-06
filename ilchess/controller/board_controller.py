@@ -154,6 +154,7 @@ def _get_bishop_moves(pos, game_state, move_history):
             moves.append((i_row + row, j_col + col))
         elif _is_opposing(my_color, game_state[i_row + row][j_col + col]):
             moves.append((i_row + row, j_col + col))
+            break
 
     # Lower left diagonal
     for i_row, j_col in zip(range(-1, -8, -1), range(-1, -8, -1)):
@@ -173,7 +174,7 @@ def _get_rook_moves(pos, game_state, move_history):
     moves = []
     # change columns, e.g. B7H7
     for tar_col in range(col - 1, col - 8, -1):
-        if tar_col + col < 0 or _is_mine(my_color, game_state[row][tar_col]):
+        if tar_col < 0 or _is_mine(my_color, game_state[row][tar_col]):
             break
         elif game_state[row][tar_col] == '0':
             moves.append((row, tar_col))
@@ -183,7 +184,7 @@ def _get_rook_moves(pos, game_state, move_history):
 
     # e.g. H7B7
     for tar_col in range(col + 1, col + 8):
-        if tar_col + col > 7 or _is_mine(my_color, game_state[row][tar_col]):
+        if tar_col > 7 or _is_mine(my_color, game_state[row][tar_col]):
             break
         elif game_state[row][tar_col] == '0':
             moves.append((row, tar_col))
@@ -192,7 +193,7 @@ def _get_rook_moves(pos, game_state, move_history):
             break
 
     for tar_row in range(row - 1, row - 8, -1):
-        if tar_row + row < 0 or _is_mine(my_color, game_state[tar_row][col]):
+        if tar_row < 0 or _is_mine(my_color, game_state[tar_row][col]):
             break
         elif game_state[tar_row][col] == '0':
             moves.append((tar_row, col))
@@ -201,7 +202,7 @@ def _get_rook_moves(pos, game_state, move_history):
             break
 
     for tar_row in range(row + 1, row + 8):
-        if tar_row + row > 7 or _is_mine(my_color, game_state[tar_row][col]):
+        if tar_row > 7 or _is_mine(my_color, game_state[tar_row][col]):
             break
         elif game_state[tar_row][col] == '0':
             moves.append((tar_row, col))
@@ -231,6 +232,7 @@ def _get_knight_moves(pos, game_state, move_history):
 def _get_queen_moves(pos, game_state, move_history):
     # queen is rook + bishop, so it is trivial :)
     return _get_rook_moves(pos, game_state, move_history) + _get_bishop_moves(pos, game_state, move_history)
+
 
 def _is_pawn_attack(pawn_start_pos, pawn_end_pos):
     start_row, start_col = pawn_start_pos
