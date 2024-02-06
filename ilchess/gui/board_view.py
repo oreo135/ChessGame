@@ -40,9 +40,6 @@ def _get_color(row, col, highlight=False):
         return white_bg_hl if highlight else white_bg
 
 
-
-
-
 def _draw_figure(canvas, figure_key):
     if figure_key != '0':
         figure = _figures_map_[figure_key.lower()]
@@ -91,7 +88,7 @@ class BoardView(object):
         _label_side()
         self._canvas = []
         self._images = []
-        self._state = state
+        self._state = None
         for row in range(8):
             self._images.append([])
             self._canvas.append([])
@@ -119,7 +116,6 @@ class BoardView(object):
                 fig_image = self._images[row][col]
                 if fig_image is not None:
                     self._canvas[row][col].delete(fig_image)
-
                 self._images[row][col] = _draw_figure(self._canvas[row][col], state[row][col])
 
     def _handle_move(self, pos_from, pos_to):
@@ -127,12 +123,12 @@ class BoardView(object):
             handler(pos_from, pos_to)
 
     def _on_square_click(self, row, col, _):
-        if self._selected_square is not None:
-            print("SELECTED SQUARE" + str(self._selected_square))
-            square_moves = self._available_moves.get(self._selected_square)
+        selected_square = self._selected_square
+        if selected_square is not None:
+            print("SELECTED SQUARE" + str(selected_square))
+            square_moves = self._available_moves.get(selected_square)
             if square_moves is not None and (row, col) in square_moves:
-                self._handle_move(pos_from=self._selected_square, pos_to=(row, col))
-                self._selected_square = None
+                self._handle_move(pos_from=selected_square, pos_to=(row, col))
             for r, c in square_moves:
                 self._canvas[r][c].configure(bg=_get_color(r, c, highlight=False))
             self._selected_square = None

@@ -2,11 +2,10 @@ from collections import defaultdict
 
 
 def _get_figures_positions(game_state):
-    row = 0
     white_figures_pos = defaultdict(lambda: [])
     black_figures_pos = defaultdict(lambda: [])
-    while row < 8:
-        col = 0
+
+    for row in range(0, 8):
         for col in range(0, 8):
             figure = game_state[row][col]
             print(str(row) + ' ' + str(col) + ' ' + figure)
@@ -20,7 +19,7 @@ def _get_figures_positions(game_state):
                 positions = black_figures_pos[figure]
                 positions.append((row, col))
                 black_figures_pos[figure] = positions
-        row += 1
+
     return white_figures_pos, black_figures_pos
 
 
@@ -46,6 +45,8 @@ def _is_mine(my_color, field_figure):
 def _is_empty_field(field_figure):
     return field_figure == '0'
 
+def _get_my_color(move_history):
+    return 'b' if len(move_history) % 2 else 'w'
 
 def _move_is_possible(move, game_state):
     # one of the most important, should be done ASAP
@@ -88,15 +89,15 @@ def _get_pawn_moves(pos, game_state, move_history):
             moves.append((row + 2, col))
         # E4D5
         if len(move_history):
-            if row == 4 and game_state[row][col - 1] == 'p' and move_history[-1][0] == (row + 2, col - 1) \
+            if row == 4 and game_state[row][col - 1] == 'P' and move_history[-1][0] == (row + 2, col - 1) \
                     and move_history[-1][1] == (row, col - 1):
                 moves.append((row + 1, col - 1))
             # E4F5
-            if row == 4 and game_state[row][col + 1] == 'p' and move_history[-1][0] == (row + 2, col + 1) \
+            if row == 4 and game_state[row][col + 1] == 'P' and move_history[-1][0] == (row + 2, col + 1) \
                     and move_history[-1][1] == (row, col + 1):
                 moves.append((row + 1, col + 1))
-        if _is_opposing(my_color, game_state[row + 1][col - 1]):
-            moves.append((row + 1, col - 1))
+            if _is_opposing(my_color, game_state[row + 1][col - 1]):
+                moves.append((row + 1, col - 1))
         if col < 7 and _is_opposing(my_color, game_state[row + 1][col + 1]):
             moves.append((row + 1, col + 1))
         pass
@@ -150,7 +151,7 @@ def _get_bishop_moves(pos, game_state, move_history):
         if (i_row + row) > 7 or (j_col + col) < 0 or _is_mine(my_color, game_state[i_row + row][j_col + col]):
             break
         elif game_state[i_row + row][j_col + col] == '0':
-            moves.append((i_row + row,j_col + col))
+            moves.append((i_row + row, j_col + col))
         elif _is_opposing(my_color, game_state[i_row + row][j_col + col]):
             moves.append((i_row + row, j_col + col))
 
@@ -230,6 +231,14 @@ def _get_knight_moves(pos, game_state, move_history):
 def _get_queen_moves(pos, game_state, move_history):
     # queen is rook + bishop, so it is trivial :)
     return _get_rook_moves(pos, game_state, move_history) + _get_bishop_moves(pos, game_state, move_history)
+
+def _is_pawn_attack(pawn_start_pos, pawn_end_pos):
+    start_row, start_col = pawn_start_pos
+    end_row, end_col = pawn_end_pos
+    if abs(end_row - start_row) == 2:
+        return False
+    is_attack = abs(end_row - start_row) + abs(end_col - start_col) == 2
+    return is_attack
 
 
 _figure_evaluators = {
@@ -324,11 +333,18 @@ class BoardController(object):
         print("you want to move from " + str(start_pos) + " to " + str(end_pos))
         start_row, start_col = start_pos
         end_row, end_col = end_pos
+
+        is_pawn_attack = self._board_state[start_row][start_col].lower() == 'p' and _is_pawn_attack(start_pos, end_pos)
+        is_pawn_cut = is_pawn_attack and _is_empty_field(self._board_state[end_row][end_col])
+        if is_pawn_cut:
+            self._board_state[start_row][end_col] = '0'
         self._board_state[end_row][end_col] = self._board_state[start_row][start_col]
         self._board_state[start_row][start_col] = '0'
         self._moves_history.append((start_pos, end_pos))
         for handler in self._move_handlers:
             handler(self._board_state, self._moves_history, self.get_available_moves())
+
+
 
     def add_move_handler(self, move_handler):
         self._move_handlers.append(move_handler)
