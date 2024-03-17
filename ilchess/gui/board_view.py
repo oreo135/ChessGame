@@ -49,9 +49,12 @@ def _draw_figure(canvas, figure_key):
         return canvas.create_image(figure_width, figure_height, image=img, anchor='se')
 
 
-def _label_top():
+def _label_top(reverted):
+    if reverted:
+        top_labels = ["A", "B", "C", "D", "E", "F", "G", "H"]
     # putting letter labels at top of board
-    top_labels = ["A", "B", "C", "D", "E", "F", "G", "H"][::-1]
+    else:
+        top_labels = ["A", "B", "C", "D", "E", "F", "G", "H"][::-1]
     count = 1
     for letter in top_labels:
         letter = tk.Label(tk_root, text=letter)
@@ -59,9 +62,12 @@ def _label_top():
         count += 1
 
 
-def _label_side():
+def _label_side(reverted):
     # putting numbers in labels at side of board
-    side_labels = [i for i in range(1, 9)]
+    if reverted:
+        side_labels = [i for i in range(8, -1, -1)]
+    else:
+        side_labels = [i for i in range(1, 9)]
     count = 1
     for num in side_labels:
         num = tk.Label(tk_root, text=num)
@@ -85,8 +91,8 @@ class BoardView(object):
         self._available_moves = available_moves
         self._history = history
         self._move_handlers = []
-        _label_top()
-        _label_side()
+        _label_top(False)
+        _label_side(False)
         self._canvas = []
         self._images = []
         self._state = None
@@ -131,6 +137,12 @@ class BoardView(object):
                 state_row, state_col = self._get_state_pos(row, col)
 
                 self._images[row][col] = _draw_figure(self._canvas[row][col], self._state[state_row][state_col])
+        if self._reverted:
+            _label_top(True)
+            _label_side(True)
+        else:
+            _label_top(False)
+            _label_side(False)
 
     def _handle_move(self, pos_from, pos_to):
         for handler in self._move_handlers:
