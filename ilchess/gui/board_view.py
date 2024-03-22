@@ -117,8 +117,17 @@ class BoardView(object):
                 self._add_canvas_click_handler(row, col)
         self._rotate_btn = tk.Button(tk_root, text='Coup', width=10, height=5, bd='10', command=self._rotate)
         self._rotate_btn.place(x=1150, y=905)
+        self._load_history_btn = tk.Button(tk_root, text='Download', width=10, height=5, bd='10', command=self._download)
+        self._load_history_btn.place(x=1150, y=750)
         self._hl_list = []
         self.update_state(state, history, available_moves)
+
+    def add_transformation_handler(self, transformation_handler):
+        self._transformation_handler.append(transformation_handler)
+
+    def _download(self):
+        for handler_download in self._transformation_handler:
+            handler_download(self._history)
 
     def _get_state_pos(self, row, col):
         return (7 - row, 7 - col) if self._reverted else (row, col)
@@ -184,6 +193,7 @@ class BoardView(object):
                     self._hl_list.append((r, c))
                     self._canvas[r][c].configure(bg=_get_color(r, c, highlight=True))
                 self._selected_square = state_row_col
+                print("self._selected_square ", self._selected_square)
 
     def promoting_pawn(self, move_history):
         list_fig_promotion = ["q", "b", "n", "r"] if len(move_history) % 2 != 0 else ["Q", "B", "N", "R"]
@@ -218,7 +228,6 @@ class BoardView(object):
             self._promotion_canvas[c].destroy()
         self._promotion_canvas = []
 
-
     def _transformation_move(self, row, col, fig):
         for handler in self._move_handlers:
             handler(row, col, fig)
@@ -237,9 +246,6 @@ class BoardView(object):
             new_hl_list.append((r, c))
             self._canvas[r][c].configure(bg=_get_color(r, c, highlight=True))
         self._hl_list = new_hl_list
-
-    def add_transformation_handler(self, transformation_handler):
-        self._transformation_handler.append(transformation_handler)
 
     def add_move_handler(self, move_handler):
         self._move_handlers.append(move_handler) #added b_controller.perform_move

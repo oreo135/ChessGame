@@ -6,6 +6,7 @@ from ilchess.gui.gui_settings import *
 from tkinter import *
 
 
+
 def main():
 
     current_state = default_state[:]
@@ -15,6 +16,7 @@ def main():
     b_view.add_move_handler(b_controller.perform_move)
     b_controller.add_move_handler(b_view.update_state)
     b_controller.add_transformation_handler(b_view.promoting_pawn)
+    b_view.add_transformation_handler(b_controller.to_standard_notation)
     # Implement function which prints available moves instead of board state in onClick of BoardView.
     tk_root.mainloop()
 

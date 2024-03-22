@@ -1,4 +1,5 @@
 import copy
+from ilchess.state import default_state
 from collections import defaultdict
 
 
@@ -38,6 +39,16 @@ def _is_check(board_state, move_history):
                 print('CHECK')
                 return True
     return False
+
+
+def _is_checkmate(available_moves, board_state, move_history):
+    if has_no_moves(available_moves) and _is_check(board_state, move_history):
+        return True
+
+
+def _is_stalemate(available_moves, board_state, move_history):
+    if has_no_moves(available_moves) and not _is_check(board_state, move_history):
+        return True
 
 
 def _is_opposing(my_color, field_figure):
@@ -346,9 +357,18 @@ def _get_available_moves_for_state(game_state, moves_history, evaluate_checks=Tr
     return _get_available_moves(player_positions, game_state, moves_history, evaluate_checks)
 
 
-def to_standard_notation(moves_history):
-    # TODO
-    pass
+def _check_remove_piece(move, state):
+    start_pos, end_pos = move
+    start_row, start_col = start_pos
+    end_row, end_col = end_pos
+    if (state[start_row][start_col] != state[end_row][end_col]) and state[end_row][end_col] != '0':
+        return True
+
+
+def _check_pawn_promotion(end_pos, state):
+    end_row, end_col = end_pos
+    if (end_row == 0 or end_row == 7) and state[end_row][end_col].lower() == 'p':
+        return True
 
 
 def has_no_moves(my_moves):
@@ -358,18 +378,13 @@ def has_no_moves(my_moves):
     return True
 
 
-def check_draw(start_pos, end_pos, board_state):
+def _check_draw(start_pos, end_pos, board_state):
     start_row, start_col = start_pos
     end_row, end_col = end_pos
 
     if (board_state[start_row][start_col] != board_state[end_row][end_col]
             or board_state[start_row][start_col].lower() == 'p'):
         return False
-
-def pawn_promotion_check(pos):
-    r, c = pos
-    pass
-
 
 def from_standard_notation(standard_notation_history):
     # TODO should return (game_state, moves_history)
@@ -412,12 +427,13 @@ class BoardController(object):
         """
         self._move_handlers = []
         self._transformation_handler = []
-        self._promotion_fig = None
+        self._promotion_figs = {}
         self._board_state = initial_board_state
         _validate_moves_history(moves_history)
         self._moves_history = moves_history
         self._move_number = 0
-
+        self._i_count = 1
+        self._copy_default_state = copy.deepcopy(default_state)
 
     def get_available_moves(self):
         return dict(_get_available_moves_for_state(self._board_state, self._moves_history))
@@ -451,7 +467,7 @@ class BoardController(object):
 
             if has_no_moves(new_available_moves):
                 print("CHECKMATE" if _is_check else "STALLMATE")
-            if check_draw(start_pos, end_pos, self._board_state):
+            if _check_draw(start_pos, end_pos, self._board_state):
                 self._move_number += 1
                 if self._move_number == 50:
                     print("DRAW")
@@ -462,7 +478,7 @@ class BoardController(object):
                 # b_view.update_state
                 handler(self._board_state, self._moves_history, new_available_moves)
 
-            if (end_row == 0 or end_row == 7) and self._board_state[end_row][end_col].lower() == 'p':
+            if _check_pawn_promotion(end_pos, self._board_state):
                 for handler in self._transformation_handler:
                     handler(self._moves_history)
         else:
@@ -470,9 +486,125 @@ class BoardController(object):
             last_pos = self._moves_history[-1][-1]
             row_last_pos, col_last_pos = last_pos[0], last_pos[1]
             self._board_state[row_last_pos][col_last_pos] = fig
+            self._promotion_figs[self._i_count] = fig
+            self._i_count += 1
             for handler in self._move_handlers:
                 # b_view.update_state
                 handler(self._board_state, self._moves_history, self.get_available_moves())
+
+    def to_standard_notation(self, moves_history):
+        start_state = copy.deepcopy(self._copy_default_state)
+        end_state = copy.deepcopy(start_state)
+        standard_notation = []
+        enum_promo = 0
+        top_labels = ["a", "b", "c", "d", "e", "f", "g", "h"][::-1]
+        number = 0
+        move_number = 0
+        current_move_history = []
+
+        for count, move in enumerate(moves_history):
+            start_pos, end_pos = move
+            start_row, start_col = start_pos
+            end_row, end_col = end_pos
+            current_move_history.append(move)
+            end_state[end_row][end_col] = end_state[start_row][start_col]
+            end_state[start_row][start_col] = '0'
+            available_moves = dict(_get_available_moves_for_state(end_state, current_move_history))
+
+            if start_state[start_row][start_col].lower() == 'k' and abs(end_col - start_col) > 1:
+                move_in_notation = f'O-O'
+                if count % 2 == 0:
+                    number += 1
+                    standard_notation.append([str(number) + '. ', move_in_notation])
+                else:
+                    standard_notation[-1].append(move_in_notation)
+                continue
+
+            if _is_stalemate(available_moves, end_state, current_move_history):
+                move_in_notation = f'1/2-1/2'
+                if count % 2 == 0:
+                    number += 1
+                    standard_notation.append([str(number) + '. ', move_in_notation])
+                else:
+                    standard_notation[-1].append(move_in_notation)
+                break
+
+            if _check_draw(start_pos, end_pos, end_state):
+                move_number += 1
+                if move_number == 50:
+                    move_in_notation = f'1/2-1/2'
+                    if count % 2 == 0:
+                        number += 1
+                        standard_notation.append([str(number) + '. ', move_in_notation])
+                    else:
+                        standard_notation[-1].append(move_in_notation)
+                    break
+            else:
+                move_number = 0
+
+            if _check_pawn_promotion(end_pos, end_state):
+                enum_promo += 1
+                if _is_checkmate(available_moves, end_state, current_move_history):
+                    move_in_notation = f'{top_labels[end_col]}{end_row + 1}={self._promotion_figs[enum_promo].upper()}#'
+                elif _is_check(end_state, current_move_history):
+                    move_in_notation = f'{top_labels[end_col]}{end_row + 1}={self._promotion_figs[enum_promo].upper()}+'
+                else:
+                    if enum_promo not in self._promotion_figs:
+                        print("select a transformation figure!")
+                    move_in_notation = f'{top_labels[end_col]}{end_row + 1}={self._promotion_figs[enum_promo].upper()}'
+                if count % 2 == 0:
+                    number += 1
+                    standard_notation.append([str(number) + '. ', move_in_notation])
+                else:
+                    standard_notation[-1].append(move_in_notation)
+                continue
+            if _check_remove_piece(move, start_state):
+                if _is_checkmate(available_moves, end_state, current_move_history):
+                    if end_state[start_row][start_col].lower() != 'p':
+                        move_in_notation = f'{end_state[end_row][end_col].upper()}x{top_labels[end_col]}{end_row + 1}#'
+                    else:
+                        move_in_notation = f'ex{top_labels[end_col]}{end_row + 1}#'
+                elif _is_check(end_state, current_move_history):
+                    if end_state[end_row][end_col].lower() != 'p':
+                        move_in_notation = f'{end_state[end_row][end_col].upper()}x{top_labels[end_col]}{end_row + 1}+'
+                    else:
+                        move_in_notation = f'ex{top_labels[end_col]}{end_row + 1}+'
+
+                else:
+                    if end_state[start_row][start_col].lower() != 'p':
+                        move_in_notation = f'{end_state[end_row][end_col].upper()}x{top_labels[end_col]}{end_row + 1}'
+                    else:
+                        move_in_notation = f'ex{top_labels[end_col]}{end_row + 1}'
+            else:
+                if _is_checkmate(available_moves, end_state, current_move_history):
+                    if end_state[end_row][end_col].lower() != 'p':
+                        move_in_notation = f'{end_state[end_row][end_col].upper()}{top_labels[end_col]}{end_row}#'
+                    else:
+                        move_in_notation = f'{top_labels[end_col]}{end_row + 1}#'
+                elif _is_check(end_state, current_move_history):
+                    if end_state[start_row][start_col].lower() != 'p':
+                        move_in_notation = f'{end_state[end_row][end_col].upper()}{top_labels[end_col]}{end_row}+'
+                    else:
+                        move_in_notation = f'{top_labels[end_col]}{end_row + 1}+'
+                else:
+                    if end_state[end_row][end_col].lower() != 'p':
+                        move_in_notation = f'{end_state[end_row][end_col].upper()}{top_labels[end_col]}{end_row}'
+                    else:
+                        move_in_notation = f'{top_labels[end_col]}{end_row + 1}'
+            if count % 2 == 0:
+                number += 1
+                standard_notation.append([str(number) + '. ', move_in_notation])
+            else:
+                standard_notation[-1].append(move_in_notation)
+
+            start_state[end_row][end_col] = start_state[start_row][start_col]
+            start_state[start_row][start_col] = '0'
+
+
+        with open('history.txt', 'w') as f:
+            f.write(str(standard_notation))
+
+
 
 
     def add_transformation_handler(self, transformation_handler):
