@@ -74,6 +74,7 @@ def _label_side(reverted):
         num.grid(column=0, row=count, sticky="E")
         count += 1
 
+
 class BoardView(object):
     """
     GameView is only used to represent graphical user interface

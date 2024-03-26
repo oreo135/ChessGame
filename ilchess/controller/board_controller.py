@@ -21,6 +21,7 @@ def _get_figures_positions(game_state):
                 positions = black_figures_pos[figure]
                 positions.append((row, col))
                 black_figures_pos[figure] = positions
+    print("white_figure_pos ", white_figures_pos)
     return white_figures_pos, black_figures_pos
 
 
@@ -88,7 +89,8 @@ def _move_is_possible(move, game_state, move_history):
         for enemy_move in enemy_fig[1]:
             if our_king == enemy_move:
                 return False
-            if is_king_castling and (enemy_move == (start_row, (end_col + start_col) // 2) or enemy_move == (start_row, start_col)):
+            if is_king_castling and (enemy_move == (start_row, (end_col + start_col) // 2)
+                                     or enemy_move == (start_row, start_col)):
                 return False
     return True
 
@@ -386,6 +388,37 @@ def _check_draw(start_pos, end_pos, board_state):
             or board_state[start_row][start_col].lower() == 'p'):
         return False
 
+
+def _identical_move_two_fig(available_moves, move_history, start_state, end_state, move):
+    color = 'w' if len(move_history) % 2 else 'b'
+    w_pos, b_pos = _get_figures_positions(start_state)
+    start_pos, end_pos = move
+    start_row, end_row = start_pos
+    fig = start_state[start_row][end_row].lower()
+    print('AVAIL ', available_moves)
+    if fig == 'n':
+        one_knight, two_knight = w_pos['n'] if color == 'w' else b_pos['N']
+        if ((one_knight, end_pos) in available_moves[one_knight]) and ((two_knight, end_pos) in available_moves[two_knight]):
+            if one_knight[0] == two_knight[0]:
+                return 'col'
+            elif one_knight[1] == two_knight[1]:
+                return 'row'
+            else:
+                return True
+        else:
+            return False
+    elif fig == 'r':
+        one_rook, two_rook = w_pos['r'] if color == 'w' else b_pos['R']
+        if (end_pos in available_moves[one_rook]) and (end_pos in available_moves[two_rook]):
+            if one_rook[0] == two_rook[0]:
+                return 'col'
+            else:
+                return 'row'
+        else:
+            return False
+
+
+
 def from_standard_notation(standard_notation_history):
     # TODO should return (game_state, moves_history)
     pass
@@ -434,13 +467,17 @@ class BoardController(object):
         self._move_number = 0
         self._i_count = 1
         self._copy_default_state = copy.deepcopy(default_state)
+        self._count_move = 0
+        self._check_event = {}
 
     def get_available_moves(self):
         return dict(_get_available_moves_for_state(self._board_state, self._moves_history))
 
     def perform_move(self, start_pos, end_pos, fig=None):
         # TODO actually perform move and update state
+        _check = False
         if fig is None:
+            self._count_move += 1
             print("you want to move from " + str(start_pos) + " to " + str(end_pos))
             start_row, start_col = start_pos
             end_row, end_col = end_pos
@@ -455,9 +492,11 @@ class BoardController(object):
                 if end_col == 5:
                     self._board_state[start_row][4] = self._board_state[start_row][7]
                     self._board_state[start_row][7] = '0'
+                    self._check_event[self._count_move] = 'O-O-O'
                 elif end_col == 1:
                     self._board_state[start_row][2] = self._board_state[start_row][0]
                     self._board_state[start_row][0] = '0'
+                    self._check_event[self._count_move] = 'O-O'
 
             self._board_state[end_row][end_col] = self._board_state[start_row][start_col]
             self._board_state[start_row][start_col] = '0'
@@ -465,12 +504,23 @@ class BoardController(object):
 
             new_available_moves = self.get_available_moves()
 
+            if _is_check(self._board_state, self._moves_history):
+                self._check_event[self._count_move] = '+'
+                _check = True
+
             if has_no_moves(new_available_moves):
-                print("CHECKMATE" if _is_check else "STALLMATE")
+                if _check:
+                    print("CHECKMATE")
+                    self._check_event[self._count_move] = '#'
+                else:
+                    print("STALEMATE")
+                    self._check_event[self._count_move] = '1/2-1/2'
+
             if _check_draw(start_pos, end_pos, self._board_state):
                 self._move_number += 1
                 if self._move_number == 50:
                     print("DRAW")
+                    self._check_event[self._count_move] = '1/2-1/2'
             else:
                 self._move_number = 0
 
@@ -488,109 +538,121 @@ class BoardController(object):
             self._board_state[row_last_pos][col_last_pos] = fig
             self._promotion_figs[self._i_count] = fig
             self._i_count += 1
+            if _is_check(self._board_state, self._moves_history):
+                self._check_event[self._count_move] = '=' + fig.upper() + '+'
+            else:
+                self._check_event[self._count_move] = '=' + fig.upper()
             for handler in self._move_handlers:
                 # b_view.update_state
                 handler(self._board_state, self._moves_history, self.get_available_moves())
+        print("self._check_event", self._check_event)
 
     def to_standard_notation(self, moves_history):
         start_state = copy.deepcopy(self._copy_default_state)
         end_state = copy.deepcopy(start_state)
         standard_notation = []
-        enum_promo = 0
         top_labels = ["a", "b", "c", "d", "e", "f", "g", "h"][::-1]
         number = 0
-        move_number = 0
+
         current_move_history = []
 
         for count, move in enumerate(moves_history):
+            print(count, move)
             start_pos, end_pos = move
             start_row, start_col = start_pos
             end_row, end_col = end_pos
-            current_move_history.append(move)
             end_state[end_row][end_col] = end_state[start_row][start_col]
             end_state[start_row][start_col] = '0'
-            available_moves = dict(_get_available_moves_for_state(end_state, current_move_history))
+            available_moves = dict(_get_available_moves_for_state(start_state, current_move_history))
+            current_move_history.append(move)
+            print("available_moves", available_moves)
+            event = self._check_event.setdefault(count + 1)
 
-            if start_state[start_row][start_col].lower() == 'k' and abs(end_col - start_col) > 1:
-                move_in_notation = f'O-O'
-                if count % 2 == 0:
-                    number += 1
-                    standard_notation.append([str(number) + '. ', move_in_notation])
-                else:
-                    standard_notation[-1].append(move_in_notation)
-                continue
-
-            if _is_stalemate(available_moves, end_state, current_move_history):
-                move_in_notation = f'1/2-1/2'
-                if count % 2 == 0:
-                    number += 1
-                    standard_notation.append([str(number) + '. ', move_in_notation])
-                else:
-                    standard_notation[-1].append(move_in_notation)
-                break
-
-            if _check_draw(start_pos, end_pos, end_state):
-                move_number += 1
-                if move_number == 50:
-                    move_in_notation = f'1/2-1/2'
-                    if count % 2 == 0:
-                        number += 1
-                        standard_notation.append([str(number) + '. ', move_in_notation])
-                    else:
-                        standard_notation[-1].append(move_in_notation)
-                    break
-            else:
-                move_number = 0
-
-            if _check_pawn_promotion(end_pos, end_state):
-                enum_promo += 1
-                if _is_checkmate(available_moves, end_state, current_move_history):
-                    move_in_notation = f'{top_labels[end_col]}{end_row + 1}={self._promotion_figs[enum_promo].upper()}#'
-                elif _is_check(end_state, current_move_history):
-                    move_in_notation = f'{top_labels[end_col]}{end_row + 1}={self._promotion_figs[enum_promo].upper()}+'
-                else:
-                    if enum_promo not in self._promotion_figs:
-                        print("select a transformation figure!")
-                    move_in_notation = f'{top_labels[end_col]}{end_row + 1}={self._promotion_figs[enum_promo].upper()}'
-                if count % 2 == 0:
-                    number += 1
-                    standard_notation.append([str(number) + '. ', move_in_notation])
-                else:
-                    standard_notation[-1].append(move_in_notation)
-                continue
             if _check_remove_piece(move, start_state):
-                if _is_checkmate(available_moves, end_state, current_move_history):
-                    if end_state[start_row][start_col].lower() != 'p':
-                        move_in_notation = f'{end_state[end_row][end_col].upper()}x{top_labels[end_col]}{end_row + 1}#'
+                if end_state[start_row][start_col].lower() != 'p':
+                    if start_state[start_row][start_col].lower() == 'n':
+                        attribute = _identical_move_two_fig(available_moves,
+                                                            current_move_history,
+                                                            start_state,
+                                                            end_state,
+                                                            move)
+                        if attribute == 'col':
+                            move_in_notation = (f'{end_state[end_row][end_col].upper()}{top_labels[start_col]}x'
+                                                f'{top_labels[end_col]}{end_row + 1}')
+                        elif attribute == 'row':
+                            move_in_notation = (f'{end_state[end_row][end_col].upper()}{start_row + 1}x'
+                                                f'{top_labels[end_col]}{end_row + 1}')
+                        elif attribute:
+                            move_in_notation = (f'{end_state[end_row][end_col].upper}{top_labels[start_col]}'
+                                                f'{top_labels[end_col]}{end_row + 1}')
+                        else:
+                            move_in_notation = (f'{end_state[end_row][end_col].upper()}x'
+                                                f'{top_labels[end_col]}{end_row + 1}')
+                    elif start_state[start_row][start_col].lower() == 'r':
+                        attribute = _identical_move_two_fig(available_moves,
+                                                            current_move_history,
+                                                            start_state,
+                                                            end_state,
+                                                            move)
+                        if attribute == 'col':
+                            move_in_notation = (f'{end_state[end_row][end_col].upper()}{top_labels[start_col]}x'
+                                                f'{top_labels[end_col]}{end_row + 1}')
+                        elif attribute == 'row':
+                            move_in_notation = (f'{end_state[end_row][end_col].upper()}{start_row + 1}x'
+                                                f'{top_labels[end_col]}{end_row + 1}')
+                        else:
+                            move_in_notation = (f'{end_state[end_row][end_col].upper()}x'
+                                                f'{top_labels[end_col]}{end_row + 1}')
                     else:
-                        move_in_notation = f'ex{top_labels[end_col]}{end_row + 1}#'
-                elif _is_check(end_state, current_move_history):
-                    if end_state[end_row][end_col].lower() != 'p':
-                        move_in_notation = f'{end_state[end_row][end_col].upper()}x{top_labels[end_col]}{end_row + 1}+'
-                    else:
-                        move_in_notation = f'ex{top_labels[end_col]}{end_row + 1}+'
+                        move_in_notation = (f'{top_labels[start_col]}x'
+                                            f'{top_labels[end_col]}{end_row + 1}')
 
                 else:
-                    if end_state[start_row][start_col].lower() != 'p':
-                        move_in_notation = f'{end_state[end_row][end_col].upper()}x{top_labels[end_col]}{end_row + 1}'
-                    else:
-                        move_in_notation = f'ex{top_labels[end_col]}{end_row + 1}'
+                    move_in_notation = f'ex{top_labels[end_col]}{end_row + 1}'
             else:
-                if _is_checkmate(available_moves, end_state, current_move_history):
-                    if end_state[end_row][end_col].lower() != 'p':
-                        move_in_notation = f'{end_state[end_row][end_col].upper()}{top_labels[end_col]}{end_row}#'
+                if end_state[end_row][end_col].lower() != 'p':
+                    if start_state[start_row][start_col].lower() == 'n':
+                        attribute = _identical_move_two_fig(available_moves,
+                                                            current_move_history,
+                                                            start_state,
+                                                            end_state,
+                                                            move)
+                        if attribute == 'col':
+                            move_in_notation = (f'{end_state[end_row][end_col].upper()}{top_labels[start_col]}'
+                                                f'{top_labels[end_col]}{end_row + 1}')
+                        elif attribute == 'row':
+                            move_in_notation = (f'{end_state[end_row][end_col].upper()}{start_row + 1}'
+                                                f'{top_labels[end_col]}{end_row + 1}')
+                        else:
+                            move_in_notation = (f'{end_state[end_row][end_col].upper()}'
+                                                f'{top_labels[end_col]}{end_row + 1}')
+                    elif start_state[start_row][start_col].lower() == 'r':
+                        attribute = _identical_move_two_fig(available_moves,
+                                                            current_move_history,
+                                                            start_state,
+                                                            end_state,
+                                                            move)
+                        if attribute == 'col':
+                            move_in_notation = (f'{end_state[end_row][end_col].upper()}{top_labels[start_col]}x'
+                                                f'{top_labels[end_col]}{end_row + 1}')
+                        elif attribute == 'row':
+                            move_in_notation = (f'{end_state[end_row][end_col].upper()}{start_row + 1}x'
+                                                f'{top_labels[end_col]}{end_row + 1}')
+                        else:
+                            move_in_notation = (f'{end_state[end_row][end_col].upper()}x'
+                                                f'{top_labels[end_col]}{end_row + 1}')
+
                     else:
-                        move_in_notation = f'{top_labels[end_col]}{end_row + 1}#'
-                elif _is_check(end_state, current_move_history):
-                    if end_state[start_row][start_col].lower() != 'p':
-                        move_in_notation = f'{end_state[end_row][end_col].upper()}{top_labels[end_col]}{end_row}+'
-                    else:
-                        move_in_notation = f'{top_labels[end_col]}{end_row + 1}+'
+                        move_in_notation = (f'{end_state[end_row][end_col].upper()}'
+                                            f'{top_labels[end_col]}{end_row + 1}')
                 else:
-                    if end_state[end_row][end_col].lower() != 'p':
-                        move_in_notation = f'{end_state[end_row][end_col].upper()}{top_labels[end_col]}{end_row}'
-                    else:
-                        move_in_notation = f'{top_labels[end_col]}{end_row + 1}'
+                    move_in_notation = f'{top_labels[end_col]}{end_row + 1}'
+            if event in {'+', '#', '=Q', '=B', '=N', '=R', '1/2-1/2', '=Q+'}:
+                move_in_notation += event
+            elif event in {'O-O-O', 'O-O'}:
+                move_in_notation = event
+                print('move_in_notation = ', move_in_notation)
+
             if count % 2 == 0:
                 number += 1
                 standard_notation.append([str(number) + '. ', move_in_notation])
@@ -600,12 +662,8 @@ class BoardController(object):
             start_state[end_row][end_col] = start_state[start_row][start_col]
             start_state[start_row][start_col] = '0'
 
-
         with open('history.txt', 'w') as f:
             f.write(str(standard_notation))
-
-
-
 
     def add_transformation_handler(self, transformation_handler):
         self._transformation_handler.append(transformation_handler)
