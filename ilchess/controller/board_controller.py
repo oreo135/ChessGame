@@ -10,7 +10,6 @@ def _get_figures_positions(game_state):
     for row in range(0, 8):
         for col in range(0, 8):
             figure = game_state[row][col]
-            print(str(row) + ' ' + str(col) + ' ' + figure)
             if figure == '0':
                 continue
             elif figure.islower():
@@ -21,7 +20,6 @@ def _get_figures_positions(game_state):
                 positions = black_figures_pos[figure]
                 positions.append((row, col))
                 black_figures_pos[figure] = positions
-    print("white_figure_pos ", white_figures_pos)
     return white_figures_pos, black_figures_pos
 
 
@@ -32,24 +30,11 @@ def _is_check(board_state, move_history):
     his_king_pos = w_pos['k'] if his_color == 'w' else b_pos['K']
     his_king_pos = his_king_pos[0]
     my_attacks = _get_available_moves(my_pos, board_state, move_history + [move_history[-1]], evaluate_checks=False)
-    print('his king pos', his_king_pos)
     for _, my_attacks in my_attacks:
-        print('i have moves ', my_attacks)
         for my_attack in my_attacks:
             if my_attack == his_king_pos:
-                print('CHECK')
                 return True
     return False
-
-
-def _is_checkmate(available_moves, board_state, move_history):
-    if has_no_moves(available_moves) and _is_check(board_state, move_history):
-        return True
-
-
-def _is_stalemate(available_moves, board_state, move_history):
-    if has_no_moves(available_moves) and not _is_check(board_state, move_history):
-        return True
 
 
 def _is_opposing(my_color, field_figure):
@@ -99,7 +84,6 @@ def _only_possible_moves(start_pos, moves, game_state, move_history):
 
     # Return a list like: [((start pos),(move_0)),((start_pos),(move_1))]
 
-    print("only possible moves " + str(moves))
     return [(start_pos, move) for move in moves if _move_is_possible((start_pos, move), game_state, move_history)]
 
 
@@ -143,11 +127,11 @@ def _get_pawn_moves(pos, game_state, move_history):
             if row == 4 and (col + 1) < 8 and game_state[row][col + 1] == 'P' and move_history[-1][0] == (row + 2, col + 1) \
                     and move_history[-1][1] == (row, col + 1):
                 moves.append((row + 1, col + 1))
-            if _is_opposing(my_color, game_state[row + 1][col - 1]):
+            if _is_opposing(my_color, game_state[row + 1][col - 1]) and col > 0:
                 moves.append((row + 1, col - 1))
         if row < 7 and col < 7 and _is_opposing(my_color, game_state[row + 1][col + 1]):
             moves.append((row + 1, col + 1))
-        pass
+
     return moves
 
 
@@ -333,7 +317,6 @@ _figure_evaluators = {
 
 def _evaluate_available_moves(fig_pos, game_state, moves_history, evaluate_checks=True):
     fig, pos = fig_pos
-    print(str(fig) + ' ' + str(pos))
     all_moves = _figure_evaluators[fig](pos, game_state, moves_history)
     if evaluate_checks:
         return _only_possible_moves(pos, all_moves, game_state, moves_history)
@@ -353,7 +336,6 @@ def _get_available_moves(player_positions, game_state, moves_history, evaluate_c
 
 
 def _get_available_moves_for_state(game_state, moves_history, evaluate_checks=True):
-    print('MOVE HISTORY: ', str(moves_history))
     w_pos, b_pos = _get_figures_positions(game_state)
     player_positions, opponent_positions = (b_pos, w_pos) if len(moves_history) % 2 else (w_pos, b_pos)
     return _get_available_moves(player_positions, game_state, moves_history, evaluate_checks)
@@ -363,14 +345,18 @@ def _check_remove_piece(move, state):
     start_pos, end_pos = move
     start_row, start_col = start_pos
     end_row, end_col = end_pos
-    if (state[start_row][start_col] != state[end_row][end_col]) and state[end_row][end_col] != '0':
+    if state[start_row][start_col] != state[end_row][end_col] and state[end_row][end_col] != '0':
         return True
+    else:
+        return False
 
 
 def _check_pawn_promotion(end_pos, state):
     end_row, end_col = end_pos
     if (end_row == 0 or end_row == 7) and state[end_row][end_col].lower() == 'p':
         return True
+    else:
+        return False
 
 
 def has_no_moves(my_moves):
@@ -389,52 +375,314 @@ def _check_draw(start_pos, end_pos, board_state):
         return False
 
 
-def _identical_move_two_fig(available_moves, move_history, start_state, end_state, move):
-    color = 'w' if len(move_history) % 2 else 'b'
-    w_pos, b_pos = _get_figures_positions(start_state)
-    start_pos, end_pos = move
-    start_row, end_row = start_pos
-    fig = start_state[start_row][end_row].lower()
-    print('AVAIL ', available_moves)
-    if fig == 'n':
-        one_knight, two_knight = w_pos['n'] if color == 'w' else b_pos['N']
-        if ((one_knight, end_pos) in available_moves[one_knight]) and ((two_knight, end_pos) in available_moves[two_knight]):
-            if one_knight[0] == two_knight[0]:
-                return 'col'
-            elif one_knight[1] == two_knight[1]:
-                return 'row'
+def _evaluate_move_from_portable_notation(move, game_state, move_history, color):
+    labels = {'a': 7, 'b': 6, 'c': 5, 'd': 4, 'e': 3, 'f': 2, 'g': 1, 'h': 0}
+    length = len(move_history)
+    print(length)
+    print('current move: ', move)
+    commons_move = []
+    fig = 'p' if move[0].islower() else move[0]
+    fig = fig.lower() if color == 'w' else fig.upper()
+    w_pos, b_pos = _get_figures_positions(game_state)
+    player_positions = w_pos if color == 'w' else b_pos
+    end_pos = (int(move[-1]) - 1, labels[move[-2]])
+    for pos in player_positions[fig]:
+        moves = _evaluate_available_moves((fig.lower(), pos), game_state, move_history)
+        for shift in moves:
+            if (pos, end_pos) == shift:
+                commons_move.append((pos, end_pos))
+    if len(commons_move) == 1:
+        start_pos = commons_move[0][0]
+    else:
+        for next_symbol in move[0:3]:
+            if next_symbol not in labels.keys() and not next_symbol.isdigit():
+                continue
+            elif next_symbol.isdigit():
+                start_row = int(next_symbol) - 1
+                start_col = None
             else:
-                return True
+                start_col = labels[next_symbol]
+                start_row = None
+            # for index, move_fig in enumerate(commons_move[:]):
+            #     if (start_row is not None) and move_fig[0][0] != start_row:
+            #         commons_move.pop(index)
+            #     if (start_col is not None) and (move_fig[0][1] != start_col):
+            #         commons_move.pop(index)
+            commons_move = [move_fig for move_fig in commons_move if
+                            (start_row is None or move_fig[0][0] == start_row) and
+                            (start_col is None or move_fig[0][1] == start_col)]
+            if len(commons_move) == 1:
+                break
+        start_pos = commons_move[0][0]
+    return start_pos, end_pos
+
+
+def validate_moves_history(portable_moves_history):
+    # translation from normal notation to algebraic,
+    # where each move is in an array portable_moves_history
+    portable_moves_history = portable_moves_history.split()
+    moves = [move for index, move in enumerate(portable_moves_history[:-1]) if index % 3 != 0]
+    algebraic_notation = []
+    game_state = copy.deepcopy(default_state)
+    pawn_promotion = {}
+
+    for index, port_move in enumerate(moves):
+        fig = ''
+        color = 'w' if index % 2 == 0 else 'b'
+        if any(char in port_move for char in {'+', '#'}):
+            port_move = port_move.rstrip('+#')
+        if '=' in port_move:
+            fig = port_move[-1].upper() if color == 'b' else port_move[-1].lower()
+            pawn_promotion[index + 1] = fig
+            port_move = port_move.split('=')[0]
+        if index % 2 == 0:
+            if port_move == 'O-O':
+                game_state[0][2], game_state[0][1] = game_state[0][0], game_state[0][3]
+                game_state[0][3], game_state[0][0] = '0', '0'
+                algebraic_notation.append(((0, 3), (0, 1)))
+                continue
+            elif port_move == 'O-O-O':
+                game_state[0][5], game_state[0][4] = game_state[0][3], game_state[0][7]
+                game_state[0][3], game_state[0][7] = '0', '0'
+                algebraic_notation.append(((0, 3), (0, 5)))
+                continue
+            algebraic_move = _evaluate_move_from_portable_notation(port_move,
+                                                                   game_state,
+                                                                   algebraic_notation,
+                                                                   color)
         else:
-            return False
-    elif fig == 'r':
-        one_rook, two_rook = w_pos['r'] if color == 'w' else b_pos['R']
-        if (end_pos in available_moves[one_rook]) and (end_pos in available_moves[two_rook]):
-            if one_rook[0] == two_rook[0]:
-                return 'col'
+            if port_move == 'O-O':
+                game_state[7][1], game_state[7][2] = game_state[7][3], game_state[7][0]
+                game_state[7][3], game_state[7][0] = '0', '0'
+                algebraic_notation.append(((7, 3), (7, 1)))
+                continue
+            elif port_move == 'O-O-O':
+                game_state[7][5], game_state[7][4] = game_state[7][3], game_state[7][7]
+                game_state[7][3], game_state[7][7] = '0', '0'
+                algebraic_notation.append(((7, 3), (7, 5)))
+                continue
+            algebraic_move = _evaluate_move_from_portable_notation(port_move,
+                                                                   game_state,
+                                                                   algebraic_notation,
+                                                                   color)
+        algebraic_notation.append(algebraic_move)
+        start_pos, end_pos = algebraic_move[0], algebraic_move[1]
+        start_row, start_col = start_pos
+        end_row, end_col = end_pos
+        is_pawn_attack = game_state[start_row][start_col].lower() == 'p' and _is_pawn_attack(start_pos, end_pos)
+        is_pawn_cut = is_pawn_attack and _is_empty_field(game_state[end_row][end_col])
+        if is_pawn_cut:
+            game_state[start_row][end_col] = '0'
+        if fig:
+            game_state[end_row][end_col] = fig
+        else:
+            game_state[end_row][end_col] = game_state[start_row][start_col]
+        game_state[start_row][start_col] = '0'
+    print(algebraic_notation)
+    print('length algebraic notation: ', len(algebraic_notation))
+    return algebraic_notation, pawn_promotion
+
+
+def _event_check(index, start_pos, end_pos, board_state, move_history, draw_move_50, draw_move_3, check_promo=True):
+    start_row, start_col = start_pos
+    end_row, end_col = end_pos
+    is_king_castling = board_state[start_row][start_col].lower() == 'k' and abs(end_col - start_col) == 2
+    current_moves_history = move_history[:]
+    _check = False
+    event = ''
+    if is_king_castling:
+        if end_col == 5:
+            board_state[start_row][5] = board_state[start_row][3]
+            board_state[start_row][4] = board_state[start_row][7]
+            board_state[start_row][3], board_state[start_row][7] = '0', '0'
+            event = 'O-O-O'
+        elif end_col == 1:
+            board_state[start_row][1] = board_state[start_row][3]
+            board_state[start_row][2] = board_state[start_row][0]
+            board_state[start_row][0], board_state[start_row][3] = '0', '0'
+            event = 'O-O'
+    if check_promo and not is_king_castling:
+        board_state[end_row][end_col] = board_state[start_row][start_col]
+        board_state[start_row][start_col] = '0'
+
+    new_available_moves = dict(_get_available_moves_for_state(board_state, current_moves_history))
+    w_pos, b_pos = _get_figures_positions(board_state)
+
+    if _is_check(board_state, current_moves_history):
+        event += '+'
+        _check = True
+    if len(w_pos) == 1 and len(b_pos) == 1:
+        event = '1/2-1/2'
+    # Function to checks events
+    if has_no_moves(new_available_moves):
+        if _check:
+            print("CHECKMATE")
+            if event in {'O-O', 'O-O-O'}:
+                event += '#'
             else:
-                return 'row'
+                event = '#'
         else:
-            return False
+            print("STALEMATE")
+            event = '1/2-1/2'
+    if _check_draw(start_pos, end_pos, board_state):
+        draw_move_50 += 1
+        if draw_move_50 == 50:
+            print("DRAW")
+            event = '1/2-1/2'
+    else:
+        draw_move_50 = 0
+    if len(move_history) > 4 and (index + 5) <= len(move_history):
+        if move_history[index] == move_history[index + 4]:
+            last_b_fig_pos = move_history[index + 2][1]
+            last_w_fig_pos = move_history[index + 1][0]
+            if len(move_history) % 2:
+                b_fig_pos = move_history[index + 4][1]
+                w_fig_pos = move_history[index + 5][0]
+                if w_fig_pos == last_w_fig_pos or b_fig_pos == last_b_fig_pos:
+                    event = '1/2-1/2'
+        else:
+            draw_move_3 = 0
+    return board_state, event, draw_move_3, draw_move_50, new_available_moves
 
 
+def treatment(standard_notation):
+    result = []
+    first = ''
+    count = 1
+    for index, move in enumerate(standard_notation):
+        if (index + 1) % 2:
+            first = f'{count}. {move}'
+            count += 1
+        else:
+            first += ' ' + move
+            result.append(first)
+            first = ''
+    if first:
+        result.append(first)
+    return result
 
-def from_standard_notation(standard_notation_history):
-    # TODO should return (game_state, moves_history)
-    pass
 
+def to_standard_notation(moves_history, pawn_promotion):
+    current_state = copy.deepcopy(default_state)
+    next_state = copy.deepcopy(default_state)
+    standard_notation = []
+    top_labels = ["a", "b", "c", "d", "e", "f", "g", "h"][::-1]
+    count_promo = 1
+    current_move_history = []
+    draw_move_50 = 0
+    draw_move_3 = 0
 
-def _validate_moves_history(moves_history):
-    # TODO
-    pass
+    for index, (start_pos, end_pos) in enumerate(moves_history):
+        end_row, end_col = end_pos
+        start_row, start_col = start_pos
+        fig = current_state[start_row][start_col]
+        color = 'w' if index % 2 == 0 else 'b'
+        commons_moves_algebraic = []
+        w_pos, b_pos = _get_figures_positions(current_state)
+        player_positions = w_pos if color == 'w' else b_pos
+        move_in_standard = ''
+        check_promo = True
+        print('number_move:', index)
+        is_pawn_attack = current_state[start_row][start_col].lower() == 'p' and _is_pawn_attack(start_pos, end_pos)
+        is_pawn_cut = is_pawn_attack and _is_empty_field(current_state[end_row][end_col])
+        if (end_row == 7 or end_row == 0) and fig.lower() == 'p':
+            if current_state[end_row][end_col] != '0':
+                move_in_standard = f'{top_labels[start_col]}x{top_labels[end_col]}{end_row + 1}'
+                current_state[end_row][end_col] = pawn_promotion[index + 1]
+                current_state[start_row][start_col] = '0'
+                check_promo = False
+            else:
+                move_in_standard = f'{top_labels[start_col]}{end_row + 1}'
+                current_state[end_row][end_col] = pawn_promotion[index + 1]
+                current_state[start_row][start_col] = '0'
+                check_promo = False
+        if is_pawn_cut:
+            move_in_standard = f'{top_labels[start_col]}x{top_labels[end_col]}{end_row + 1}'
+            current_state[start_row][end_col] = '0'
+        if not move_in_standard:
+            for pos in player_positions[fig]:
+                moves = _evaluate_available_moves((fig.lower(), pos), current_state, current_move_history)
+                for move in moves:
+                    if end_pos == move[1] and move[0] != start_pos:  # only the end position is needed move[1]
+                        commons_moves_algebraic.append(move[0])
+            if current_state[end_row][end_col] == '0':
+                if len(commons_moves_algebraic) == 0:
+                    move_in_standard = f'{top_labels[end_col]}{end_row + 1}'
+                else:
+                    check_row, check_col = False, False
+                    for row, col in commons_moves_algebraic:
+                        if row == start_row:
+                            check_row = True
+                        if col == start_col:
+                            check_col = True
+                    if check_row and not check_col:
+                        move_in_standard = f'{top_labels[start_col]}{top_labels[end_col]}{end_row + 1}'
+                    elif not check_row and check_col:
+                        move_in_standard = f'{top_labels[start_col]}{start_row + 1}{top_labels[end_col]}{end_row + 1}'
+                    elif not check_row and not check_col and len(commons_moves_algebraic) > 0:
+                        move_in_standard = f'{top_labels[start_col]}{top_labels[end_col]}{end_row + 1}'
+                    else:
+                        move_in_standard = (f'{top_labels[start_col]}'
+                                            f'{start_row + 1}{top_labels[end_col]}{end_row + 1}')
+            else:
+                if len(commons_moves_algebraic) == 0 and fig.lower() != 'p':
+                    move_in_standard = f'x{top_labels[end_col]}{end_row + 1}'
+                elif len(commons_moves_algebraic) == 0 and fig.lower() == 'p':
+                    move_in_standard = f'{top_labels[start_col]}x{top_labels[end_col]}{end_row + 1}'
+                else:
+                    check_row, check_col = False, False
+                    for row, col in commons_moves_algebraic:
+                        if row == start_row:
+                            check_row = True
+                        if col == start_col:
+                            check_col = True
+                    if check_row and not check_col:
+                        move_in_standard = f'{top_labels[start_col]}x{top_labels[end_col]}{end_row + 1}'
+                    elif not check_row and check_col:
+                        move_in_standard = f'{start_row + 1}{top_labels[end_col]}x{end_row + 1}'
+                    elif not check_row and not check_col and len(commons_moves_algebraic) >= 1:
+                        move_in_standard = f'{top_labels[start_col]}x{top_labels[end_col]}{end_row + 1}'
+                    else:
+                        move_in_standard = (f'{top_labels[start_col]}'
+                                            f'{start_row + 1}x{top_labels[end_col]}{end_row + 1}')
 
+        current_move_history.append((start_pos, end_pos))
+        current_state, event, draw_move_3, draw_move_50, new_available_moves = _event_check(index,
+                                                                                            start_pos,
+                                                                                            end_pos,
+                                                                                            current_state,
+                                                                                            current_move_history,
+                                                                                            draw_move_50,
+                                                                                            draw_move_3,
+                                                                                            check_promo)
+
+        if event in {'O-O', 'O-O-O'}:
+            move_in_standard = event
+        else:
+            if (index + 1) in pawn_promotion:
+                fig = f'={pawn_promotion[index + 1].upper()}'
+                move_in_standard = move_in_standard + fig + event
+            elif fig.lower() != 'p' and not any(x in event for x in {'O-O', '1/2'}):
+                move_in_standard = fig.upper() + move_in_standard + event
+            elif fig.lower() != 'p' and '1/2' in event and color == 'w':
+                move_in_standard = fig.upper() + move_in_standard + ' ' + '1/2'
+            elif fig.lower() != 'p' and '1/2' in event and color == 'b':
+                move_in_standard = fig.upper() + move_in_standard
+            elif 'O-O' in event:
+                move_in_standard = event
+            else:
+                move_in_standard += event
+        print('move_in_standard', move_in_standard)
+        standard_notation.append(move_in_standard)
+    print('standard_notation:', standard_notation)
+    return standard_notation
 
 
 class BoardController(object):
     """
     BoardController class handles game state. It does following:
     * evaluates available moves based on players position
-    * evaluates checkmate, stallmate, etc.
+    * evaluates checkmate, stalemate, etc.
     * performs moves and updates view state.
     Game state is stored as array of players positions and moves history.
     """
@@ -460,25 +708,24 @@ class BoardController(object):
         """
         self._move_handlers = []
         self._transformation_handler = []
-        self._promotion_figs = {}
+        self._pawn_promotion = {}
         self._board_state = initial_board_state
-        _validate_moves_history(moves_history)
         self._moves_history = moves_history
-        self._move_number = 0
-        self._i_count = 1
+        self._move_number_50 = 0
+        self._move_number_3 = 0
+        self.trans_fig_number = 1
         self._copy_default_state = copy.deepcopy(default_state)
         self._count_move = 0
         self._check_event = {}
+        self._standard_notation = []
 
     def get_available_moves(self):
         return dict(_get_available_moves_for_state(self._board_state, self._moves_history))
 
     def perform_move(self, start_pos, end_pos, fig=None):
-        # TODO actually perform move and update state
-        _check = False
         if fig is None:
+            _check = False
             self._count_move += 1
-            print("you want to move from " + str(start_pos) + " to " + str(end_pos))
             start_row, start_col = start_pos
             end_row, end_col = end_pos
 
@@ -517,12 +764,21 @@ class BoardController(object):
                     self._check_event[self._count_move] = '1/2-1/2'
 
             if _check_draw(start_pos, end_pos, self._board_state):
-                self._move_number += 1
-                if self._move_number == 50:
+                self._move_number_50 += 1
+                if self._move_number_50 == 50:
                     print("DRAW")
                     self._check_event[self._count_move] = '1/2-1/2'
+                elif len(self._moves_history) > 4:
+                    if self._moves_history[0] == self._moves_history[2] and \
+                            self._moves_history[1] == self._moves_history[3]:
+                        self._move_number_3 += 1
+                        if self._move_number_3 == 3:
+                            print('DRAW')
+                            self._check_event[self._count_move] = '1/2-1/2'
+                    else:
+                        self._move_number_3 = 0
             else:
-                self._move_number = 0
+                self._move_number_50 = 0
 
             for handler in self._move_handlers:
                 # b_view.update_state
@@ -532,136 +788,19 @@ class BoardController(object):
                 for handler in self._transformation_handler:
                     handler(self._moves_history)
         else:
-            print("MOVE HISTORY: ", self._moves_history)
             last_pos = self._moves_history[-1][-1]
             row_last_pos, col_last_pos = last_pos[0], last_pos[1]
             self._board_state[row_last_pos][col_last_pos] = fig
-            self._promotion_figs[self._i_count] = fig
-            self._i_count += 1
-            if _is_check(self._board_state, self._moves_history):
-                self._check_event[self._count_move] = '=' + fig.upper() + '+'
-            else:
-                self._check_event[self._count_move] = '=' + fig.upper()
+            self._pawn_promotion[self._count_move] = fig
+            self.trans_fig_number += 1
+            self._check_event[self._count_move] = fig
             for handler in self._move_handlers:
                 # b_view.update_state
                 handler(self._board_state, self._moves_history, self.get_available_moves())
-        print("self._check_event", self._check_event)
+        print('move_history', self._moves_history)
 
-    def to_standard_notation(self, moves_history):
-        start_state = copy.deepcopy(self._copy_default_state)
-        end_state = copy.deepcopy(start_state)
-        standard_notation = []
-        top_labels = ["a", "b", "c", "d", "e", "f", "g", "h"][::-1]
-        number = 0
-
-        current_move_history = []
-
-        for count, move in enumerate(moves_history):
-            print(count, move)
-            start_pos, end_pos = move
-            start_row, start_col = start_pos
-            end_row, end_col = end_pos
-            end_state[end_row][end_col] = end_state[start_row][start_col]
-            end_state[start_row][start_col] = '0'
-            available_moves = dict(_get_available_moves_for_state(start_state, current_move_history))
-            current_move_history.append(move)
-            print("available_moves", available_moves)
-            event = self._check_event.setdefault(count + 1)
-
-            if _check_remove_piece(move, start_state):
-                if end_state[start_row][start_col].lower() != 'p':
-                    if start_state[start_row][start_col].lower() == 'n':
-                        attribute = _identical_move_two_fig(available_moves,
-                                                            current_move_history,
-                                                            start_state,
-                                                            end_state,
-                                                            move)
-                        if attribute == 'col':
-                            move_in_notation = (f'{end_state[end_row][end_col].upper()}{top_labels[start_col]}x'
-                                                f'{top_labels[end_col]}{end_row + 1}')
-                        elif attribute == 'row':
-                            move_in_notation = (f'{end_state[end_row][end_col].upper()}{start_row + 1}x'
-                                                f'{top_labels[end_col]}{end_row + 1}')
-                        elif attribute:
-                            move_in_notation = (f'{end_state[end_row][end_col].upper}{top_labels[start_col]}'
-                                                f'{top_labels[end_col]}{end_row + 1}')
-                        else:
-                            move_in_notation = (f'{end_state[end_row][end_col].upper()}x'
-                                                f'{top_labels[end_col]}{end_row + 1}')
-                    elif start_state[start_row][start_col].lower() == 'r':
-                        attribute = _identical_move_two_fig(available_moves,
-                                                            current_move_history,
-                                                            start_state,
-                                                            end_state,
-                                                            move)
-                        if attribute == 'col':
-                            move_in_notation = (f'{end_state[end_row][end_col].upper()}{top_labels[start_col]}x'
-                                                f'{top_labels[end_col]}{end_row + 1}')
-                        elif attribute == 'row':
-                            move_in_notation = (f'{end_state[end_row][end_col].upper()}{start_row + 1}x'
-                                                f'{top_labels[end_col]}{end_row + 1}')
-                        else:
-                            move_in_notation = (f'{end_state[end_row][end_col].upper()}x'
-                                                f'{top_labels[end_col]}{end_row + 1}')
-                    else:
-                        move_in_notation = (f'{top_labels[start_col]}x'
-                                            f'{top_labels[end_col]}{end_row + 1}')
-
-                else:
-                    move_in_notation = f'ex{top_labels[end_col]}{end_row + 1}'
-            else:
-                if end_state[end_row][end_col].lower() != 'p':
-                    if start_state[start_row][start_col].lower() == 'n':
-                        attribute = _identical_move_two_fig(available_moves,
-                                                            current_move_history,
-                                                            start_state,
-                                                            end_state,
-                                                            move)
-                        if attribute == 'col':
-                            move_in_notation = (f'{end_state[end_row][end_col].upper()}{top_labels[start_col]}'
-                                                f'{top_labels[end_col]}{end_row + 1}')
-                        elif attribute == 'row':
-                            move_in_notation = (f'{end_state[end_row][end_col].upper()}{start_row + 1}'
-                                                f'{top_labels[end_col]}{end_row + 1}')
-                        else:
-                            move_in_notation = (f'{end_state[end_row][end_col].upper()}'
-                                                f'{top_labels[end_col]}{end_row + 1}')
-                    elif start_state[start_row][start_col].lower() == 'r':
-                        attribute = _identical_move_two_fig(available_moves,
-                                                            current_move_history,
-                                                            start_state,
-                                                            end_state,
-                                                            move)
-                        if attribute == 'col':
-                            move_in_notation = (f'{end_state[end_row][end_col].upper()}{top_labels[start_col]}x'
-                                                f'{top_labels[end_col]}{end_row + 1}')
-                        elif attribute == 'row':
-                            move_in_notation = (f'{end_state[end_row][end_col].upper()}{start_row + 1}x'
-                                                f'{top_labels[end_col]}{end_row + 1}')
-                        else:
-                            move_in_notation = (f'{end_state[end_row][end_col].upper()}x'
-                                                f'{top_labels[end_col]}{end_row + 1}')
-
-                    else:
-                        move_in_notation = (f'{end_state[end_row][end_col].upper()}'
-                                            f'{top_labels[end_col]}{end_row + 1}')
-                else:
-                    move_in_notation = f'{top_labels[end_col]}{end_row + 1}'
-            if event in {'+', '#', '=Q', '=B', '=N', '=R', '1/2-1/2', '=Q+'}:
-                move_in_notation += event
-            elif event in {'O-O-O', 'O-O'}:
-                move_in_notation = event
-                print('move_in_notation = ', move_in_notation)
-
-            if count % 2 == 0:
-                number += 1
-                standard_notation.append([str(number) + '. ', move_in_notation])
-            else:
-                standard_notation[-1].append(move_in_notation)
-
-            start_state[end_row][end_col] = start_state[start_row][start_col]
-            start_state[start_row][start_col] = '0'
-
+    def write_moves_history(self):
+        standard_notation = to_standard_notation(self._moves_history, self._pawn_promotion)
         with open('history.txt', 'w') as f:
             f.write(str(standard_notation))
 

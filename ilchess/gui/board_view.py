@@ -128,7 +128,7 @@ class BoardView(object):
 
     def _download(self):
         for handler_download in self._transformation_handler:
-            handler_download(self._history)
+            handler_download()
 
     def _get_state_pos(self, row, col):
         return (7 - row, 7 - col) if self._reverted else (row, col)
@@ -249,4 +249,4 @@ class BoardView(object):
         self._hl_list = new_hl_list
 
     def add_move_handler(self, move_handler):
-        self._move_handlers.append(move_handler) #added b_controller.perform_move
+        self._move_handlers.append(move_handler)  # added b_controller.perform_move
